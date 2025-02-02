@@ -10,19 +10,19 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Jacek Schneider");
 MODULE_DESCRIPTION("mcp23017 driver");
 
-#define GPA     0x12
-#define GPB     0x13
+#define REG_GPA     0x12
+#define REG_GPB     0x13
 
-#define OLATA   0x14
-#define OLATB   0x15
-#define IPOLA   0x02
-#define IPOLB   0x03
+#define REG_OLATA   0x14
+#define REG_OLATB   0x15
+#define REG_IPOLA   0x02
+#define REG_IPOLB   0x03
 
-#define IODIRA  0x00
-#define IODIRB  0x01
+#define REG_IODIRA  0x00
+#define REG_IODIRB  0x01
 
-#define INTCAPA 0x10
-#define INTCAPB 0x11
+#define REG_INTCAPA 0x10
+#define REG_INTCAPB 0x11
 
 #define INPUT 1
 #define OUTPUT 0
@@ -69,7 +69,7 @@ static int mcp_gpio_get_value(struct gpio_chip *chip, unsigned offset)
     struct mcp23017_dev* mcp = to_mcp23017_dev(chip);
     unsigned bank = offset / 8;
     unsigned bit = offset % 8;
-    u8 reg_intcap = (bank == 0) ? GPA : GPB;
+    u8 reg_intcap = (bank == 0) ? REG_GPA : REG_GPB;
 
     printk("Getting value at offset %d", offset);
     value = mcp_read_byte(mcp->client, reg_intcap);
@@ -80,7 +80,7 @@ static int mcp_set(struct mcp23017_dev *mcp, unsigned offset, int val)
 {
 	s32 value;
 	unsigned bank = offset / 8 ;
-	u8 reg_gpio = (bank == 0) ? GPA : GPB;
+	u8 reg_gpio = (bank == 0) ? REG_GPA : REG_GPB;
 	unsigned bit = offset % 8 ;
 
 	value = mcp_read_byte(mcp->client, reg_gpio);
@@ -110,7 +110,7 @@ static int mcp_direction(struct gpio_chip *gc, unsigned offset, unsigned directi
     struct mcp23017_dev *mcp = to_mcp23017_dev(gc);
     unsigned bank = offset / 8;
     unsigned bit = offset % 8;
-    u8 reg_iodir = (bank == 0) ? IODIRA : IODIRB;
+    u8 reg_iodir = (bank == 0) ? REG_IODIRA : REG_IODIRB;
     s32 iodirval = mcp_read_byte(mcp->client, reg_iodir);
     int err;
 
@@ -129,13 +129,28 @@ static int mcp_direction(struct gpio_chip *gc, unsigned offset, unsigned directi
     return direction ? iodirval : mcp_set(mcp, offset, val);
 }
 
-static int mcp_gpio_input_direction(struct gpio_chip *chip, unsigned offset)
+static int mcp_set_gpio_input_direction(struct gpio_chip *chip, unsigned offset)
 {
     return mcp_direction(chip, offset, INPUT, 0);
 }
-static int mcp_gpio_output_direction(struct gpio_chip *chip, unsigned offset, int val)
+static int mcp_set_gpio_output_direction(struct gpio_chip *chip, unsigned offset, int val)
 {
     return mcp_direction(chip, offset, OUTPUT, val);
+}
+
+static int mcp_get_gpio_direction(struct gpio_chip *chip, unsigned offset)
+{
+    struct mcp23017_dev *mcp = to_mcp23017_dev(chip);
+    unsigned bank = offset / 8;
+    unsigned bit = offset % 8;
+    u8 reg_iodir = (bank == 0) ? REG_IODIRA : REG_IODIRB;
+    s32 iodirvalue = mcp_read_byte(mcp->client, reg_iodir);
+
+    if (iodirvalue < 0)
+        return iodirvalue;
+
+    return (iodirvalue & (1 << bit)) ? 1 : 0;
+    
 }
 
 static int mcp23017_probe(struct i2c_client* client, const struct i2c_device_id *id){
@@ -155,8 +170,9 @@ static int mcp23017_probe(struct i2c_client* client, const struct i2c_device_id 
     mcp->chip.can_sleep = true;
     mcp->chip.get = mcp_gpio_get_value;
     mcp->chip.set = mcp_gpio_set_value;
-    mcp->chip.direction_input = mcp_gpio_input_direction;
-    mcp->chip.direction_output = mcp_gpio_output_direction;
+    mcp->chip.direction_input = mcp_set_gpio_input_direction;
+    mcp->chip.direction_output = mcp_set_gpio_output_direction;
+    mcp->chip.get_direction = mcp_get_gpio_direction;
     mcp->client = client;
     i2c_set_clientdata(client, mcp);
 
