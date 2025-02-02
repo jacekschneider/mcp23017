@@ -10,19 +10,19 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Jacek Schneider");
 MODULE_DESCRIPTION("mcp23017 driver");
 
-#define GPA		0x9
-#define GPB		0x19
+#define GPA     0x12
+#define GPB     0x13
 
-#define OLATA	0x0A
-#define OLATB	0x1A
-#define IPOLA	0x01
-#define IPOLB	0x11
+#define OLATA   0x14
+#define OLATB   0x15
+#define IPOLA   0x02
+#define IPOLB   0x03
 
-#define IODIRA	0x00
-#define IODIRB	0x10
+#define IODIRA  0x00
+#define IODIRB  0x01
 
-#define INTCAPA	0x8
-#define INTCAPB	0x18
+#define INTCAPA 0x10
+#define INTCAPB 0x11
 
 #define INPUT 1
 #define OUTPUT 0
@@ -33,6 +33,31 @@ struct mcp23017_dev
     struct gpio_chip chip;
 };
 
+static s32 mcp_read_byte(const struct i2c_client *client, u8 byte)
+{
+    s32 value = i2c_smbus_read_byte_data(client, byte);
+
+    if (value < 0) {
+        printk(KERN_ERR "mcp23017: Failed to read register 0x%02x, error: %d\n", byte, value);
+        return value;
+    }
+    printk(KERN_DEBUG "mcp23017: Read register 0x%02x, value: 0x%02x\n", byte, value);
+    return value;
+}
+
+static s32 mcp_write_byte(const struct i2c_client *client, u8 command, u8 value)
+{
+    s32 result = i2c_smbus_write_byte_data(client, command, value);
+
+    if (result < 0) {
+        printk(KERN_ERR "mcp23017: Failed to write 0x%02x to register 0x%02x, error: %d\n",
+               value, command, result);
+    } else {
+        printk(KERN_DEBUG "mcp23017: Wrote 0x%02x to register 0x%02x\n", value, command);
+    }
+    return result;
+}
+
 static inline struct mcp23017_dev *to_mcp23017_dev(struct gpio_chip *gc)
 {
 	return container_of(gc, struct mcp23017_dev, chip);
@@ -40,33 +65,32 @@ static inline struct mcp23017_dev *to_mcp23017_dev(struct gpio_chip *gc)
 
 static int mcp_gpio_get_value(struct gpio_chip *chip, unsigned offset) 
 {
-    printk("Getting value at offset %d", offset);
     s32 value;
     struct mcp23017_dev* mcp = to_mcp23017_dev(chip);
     unsigned bank = offset / 8;
     unsigned bit = offset % 8;
+    u8 reg_intcap = (bank == 0) ? GPA : GPB;
 
-    u8 reg_intcap = (bank == 0) ? INTCAPA : INTCAPB;
-    value = i2c_smbus_read_byte_data(mcp->client, reg_intcap);
+    printk("Getting value at offset %d", offset);
+    value = mcp_read_byte(mcp->client, reg_intcap);
     return (value >= 0) ? (value >> bit) & 0x1 : 0;
 }
 
 static int mcp_set(struct mcp23017_dev *mcp, unsigned offset, int val)
 {
 	s32 value;
-
 	unsigned bank = offset / 8 ;
 	u8 reg_gpio = (bank == 0) ? GPA : GPB;
 	unsigned bit = offset % 8 ;
 
-	value = i2c_smbus_read_byte_data(mcp->client, reg_gpio);
+	value = mcp_read_byte(mcp->client, reg_gpio);
 	if (value >= 0) {
 		if (val)
 			value |= 1 << bit;
 		else
 			value &= ~(1 << bit);
 
-		return i2c_smbus_write_byte_data(mcp->client, reg_gpio, value);
+		return mcp_write_byte(mcp->client, reg_gpio, value);
 	}
 
 	return value;
@@ -74,34 +98,35 @@ static int mcp_set(struct mcp23017_dev *mcp, unsigned offset, int val)
 
 static void mcp_gpio_set_value(struct gpio_chip *chip, unsigned offset, int val)
 {
+    struct mcp23017_dev *mcp = to_mcp23017_dev(chip);
+
     printk("Seting value at offset %d with value %d", offset, val);
-	struct mcp23017_dev *mcp = to_mcp23017_dev(chip);
 	mcp_set(mcp, offset, val);
 }
 
-/*
- * direction = 1 => input
- * direction = 0 => output
- */
-static int mcp_direction(struct gpio_chip *gc, unsigned offset,
-                                unsigned direction, int val)
+
+static int mcp_direction(struct gpio_chip *gc, unsigned offset, unsigned direction, int val)
 {
-	struct mcp23017_dev *mcp = to_mcp23017_dev(gc);
-	unsigned bank = offset / 8 ;
-	unsigned bit = offset % 8 ;
-	u8 reg_iodir = (bank == 0) ? IODIRA : IODIRB;
-	s32 iodirval = i2c_smbus_read_byte_data(mcp->client, reg_iodir);
+    struct mcp23017_dev *mcp = to_mcp23017_dev(gc);
+    unsigned bank = offset / 8;
+    unsigned bit = offset % 8;
+    u8 reg_iodir = (bank == 0) ? IODIRA : IODIRB;
+    s32 iodirval = mcp_read_byte(mcp->client, reg_iodir);
+    int err;
 
-	if (direction)
-		iodirval |= 1 << bit;
-	else
-		iodirval &= ~(1 << bit);
+    if (iodirval < 0)
+        return iodirval;
 
-	i2c_smbus_write_byte_data(mcp->client, reg_iodir, iodirval);
-	if (direction)
-		return iodirval ;
-	else
-		return mcp_set(mcp, offset, val);    
+    if (direction)
+        iodirval |= 1 << bit;
+    else
+        iodirval &= ~(1 << bit);
+
+    err = mcp_write_byte(mcp->client, reg_iodir, iodirval);
+    if (err < 0)
+        return err;
+
+    return direction ? iodirval : mcp_set(mcp, offset, val);
 }
 
 static int mcp_gpio_input_direction(struct gpio_chip *chip, unsigned offset)
@@ -114,9 +139,9 @@ static int mcp_gpio_output_direction(struct gpio_chip *chip, unsigned offset, in
 }
 
 static int mcp23017_probe(struct i2c_client* client, const struct i2c_device_id *id){
-    printk("Mcp23017 probe\n");
     struct mcp23017_dev* mcp;
 
+    printk("Mcp23017 probe\n");
     if(!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_BYTE_DATA))
         return -EIO;
     mcp = devm_kzalloc(&client->dev, sizeof(*mcp), GFP_KERNEL);
