@@ -5,6 +5,7 @@
 #include "linux/device.h"
 #include "linux/list.h"
 #include "linux/gpio/driver.h"
+#include "linux/pinctrl/pinconf.h"
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Jacek Schneider");
@@ -23,6 +24,9 @@ MODULE_DESCRIPTION("mcp23017 driver");
 
 #define REG_INTCAPA 0x10
 #define REG_INTCAPB 0x11
+
+#define REG_GPPUA   0x0C
+#define REG_GPPUB   0x0D
 
 #define INPUT 1
 #define OUTPUT 0
@@ -153,6 +157,47 @@ static int mcp_get_gpio_direction(struct gpio_chip *chip, unsigned offset)
     
 }
 
+static int mcp_set_gpio_pullup(struct gpio_chip* chip, unsigned int offset, int val)
+{
+    struct mcp23017_dev *mcp = to_mcp23017_dev(chip);
+    unsigned bank = offset / 8;
+    unsigned bit = offset % 8;
+    u8 reg_pullup = (bank==0) ? REG_GPPUA : REG_GPPUB;
+    s32 gppu_value = mcp_read_byte(mcp->client, reg_pullup);
+
+    if (gppu_value < 0)
+        return gppu_value;
+
+    if (val)
+        gppu_value |= 1 << bit;
+    else
+        gppu_value &= ~(1 << bit);
+
+    return mcp_write_byte(mcp->client, reg_pullup, gppu_value);
+}
+
+static int mcp_set_gpio_config(struct gpio_chip* chip, unsigned int offset, unsigned long config)
+{
+    unsigned int param = pinconf_to_config_param(config);
+    //unsigned int arg = pinconf_to_config_argument(config);
+
+    if (!chip || offset >= chip->ngpio)
+        return -EINVAL;
+    
+    switch (param){
+    case PIN_CONFIG_BIAS_PULL_UP:
+        printk("Calling PIN_CONFIG_BIAS_PULL_UP");
+        return mcp_set_gpio_pullup(chip, offset, 1);
+        break;
+    case PIN_CONFIG_BIAS_DISABLE:
+        printk("Calling PIN_CONFIG_BIAS_DISABLE");
+        return mcp_set_gpio_pullup(chip, offset, 0);
+        break;
+    default:
+        return -ENOTSUPP;
+    }
+}
+
 static int mcp23017_probe(struct i2c_client* client, const struct i2c_device_id *id){
     struct mcp23017_dev* mcp;
 
@@ -173,6 +218,7 @@ static int mcp23017_probe(struct i2c_client* client, const struct i2c_device_id 
     mcp->chip.direction_input = mcp_set_gpio_input_direction;
     mcp->chip.direction_output = mcp_set_gpio_output_direction;
     mcp->chip.get_direction = mcp_get_gpio_direction;
+    mcp->chip.set_config = mcp_set_gpio_config;
     mcp->client = client;
     i2c_set_clientdata(client, mcp);
 
