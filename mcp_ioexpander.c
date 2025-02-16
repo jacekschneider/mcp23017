@@ -198,7 +198,7 @@ static int mcp_set_gpio_config(struct gpio_chip* chip, unsigned int offset, unsi
     }
 }
 
-static int mcp23017_probe(struct i2c_client* client, const struct i2c_device_id *id){
+static int mcp23017_probe(struct i2c_client* client){
     struct mcp23017_dev* mcp;
 
     printk("Mcp23017 probe\n");
@@ -225,11 +225,10 @@ static int mcp23017_probe(struct i2c_client* client, const struct i2c_device_id 
     return gpiochip_add(&mcp->chip);
 };
 
-static int mcp23017_remove(struct i2c_client* client){
+static void mcp23017_remove(struct i2c_client* client){
     struct mcp23017_dev *mcp;
 	mcp = i2c_get_clientdata(client);
 	gpiochip_remove(&mcp->chip);
-    return 0;
 };
 
 static const struct of_device_id mcp23017_dt_ids[] = 
