@@ -90,6 +90,74 @@ const struct regmap_config mcp23017_regmap =
     .num_reg_defaults = ARRAY_SIZE(mcp23017_defaults),
     .cache_type = REGCACHE_FLAT,
     .val_format_endian = REGMAP_ENDIAN_LITTLE,
-    .disable_locking = true,
+    .disable_locking = true, // protected by mcp_lock()
 };
 EXPORT_SYMBOL_GPL(mcp23017_regmap);
+
+static int mcp_read(struct mcp23017 *mcp, unsigned int reg, unsigned int *val)
+{
+    return regmap_read(mcp->regmap, reg << mcp->reg_shift, val);
+}
+
+static int mcp_write(struct mcp23017 *mcp, unsigned int reg, unsigned int val)
+{
+    return regmap_write(mcp->regmap, reg << mcp->reg_shift, val);
+}
+
+static int mcp_update_bits(struct mcp23017 *mcp, unsigned int reg, unsigned int mask, unsigned int val)
+{
+    return regmap_update_bits(mcp->regmap, reg << mcp->reg_shift, mask, val);
+}
+
+static int mcp_update_bit(struct mcp23017 *mcp, unsigned int reg, unsigned int pin, bool enabled)
+{
+    u16 mask = BIT(pin);
+    return regmap_update_bits(mcp->regmap, reg, mask, enabled ? mask : 0);
+}
+
+static const struct pinctrl_pin_desc mcp23017_pins[] =
+{
+    PINCTRL_PIN(0, "gpio0");
+    PINCTRL_PIN(1, "gpio1");
+    PINCTRL_PIN(2, "gpio2");
+    PINCTRL_PIN(3, "gpio3");
+    PINCTRL_PIN(4, "gpio4");
+    PINCTRL_PIN(5, "gpio5");
+    PINCTRL_PIN(6, "gpio6");
+    PINCTRL_PIN(7, "gpio7");
+    PINCTRL_PIN(8, "gpio8");
+    PINCTRL_PIN(9, "gpio9");
+    PINCTRL_PIN(10, "gpio10");
+    PINCTRL_PIN(11, "gpio11");
+    PINCTRL_PIN(12, "gpio12");
+    PINCTRL_PIN(13, "gpio13");
+    PINCTRL_PIN(14, "gpio14");
+    PINCTRL_PIN(15, "gpio15");
+};
+
+static int mcp_pinctrl_get_groups_count(struct pinctrl_dev *pctldev)
+{
+    return 0;
+}
+
+static const char* mcp_pinctrl_get_group_name(struct pinctrl_dev *pctldev, unsigned int group)
+{
+    return NULL;
+}
+
+static int mcp_pinctrl_get_group_pins(struct pinctrl_dev *pctldev, unsigned int group, const unsigned int **pins, unsigned int *num_pins)
+{
+    return -ENOTSUPP;
+}
+
+static const struct pinctrl_ops mcp_pinctrl_ops =
+{
+    .get_group_count = mcp_pinctrl_get_group_count,
+    .get_group_name = mcp_pinctrl_get_group_name,
+    .get_group_pins = mcp_pinctrl_get_group_pins,
+    #ifdef CONFIG_OF
+    .dt_node_to_map = pinconf_generic_dt_node_to_map_pin,
+    .dt_free_map = pinconf_generic_dt_free_map,
+    #endif
+};
+
