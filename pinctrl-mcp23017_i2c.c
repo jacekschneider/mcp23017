@@ -161,3 +161,92 @@ static const struct pinctrl_ops mcp_pinctrl_ops =
     #endif
 };
 
+static int mcp_pinconf_get(struct pinctrl_dev *pctldev, unsigned int pin, unsigned long *config)
+{
+    struct mcp23017 *mcp = pinctrl_dev_get_drvdata(pctldev);
+    enum pin_config_param param = pinconf_to_config_param(*config);
+    unsigned int data, status;
+    int ret;
+
+    switch (param)
+    {
+        case PIN_CONFIG_BIAS_PULL_UP:
+            mutex_lock(&mcp->lock);
+            ret = mcp_read(mcp, MCP_GPPU, &data);
+            mutex_unlock(&mcp->lock);
+            if (ret < 0)
+                return ret;
+            status = (data & BIT(pin)) ? 1 : 0;
+            break;
+        default:
+            return -ENOTSUPP;
+    }
+    *config = 0;
+    return status ? 0 : -EINVAL;
+}
+
+static int mcp_pinconf_set(struct pinctrl_dev *pctldev, unsigned int pin, unsigned long *configs, unsigned int num_configs)
+{
+    struct mcp23017 *mcp = pinctrl_drv_get_drvdata(pctldev);
+    enum pin_config_param param;
+    u32 arg;
+    int ret = 0;
+    int i;
+
+    for (i = 0; i < num_configs; i++)
+    {
+        param = pinconf_to_config_param(configs[i]);
+        arg = pinconf_to_config_argument(configs[i]);
+        switch (param)
+        {
+            case PIN_CONFIG_BIAS_PULL_UP:
+                mutex_lock(&mcp->lock);
+                ret = mcp_set_bit(mcp, MCP_GPPU, pin, arg);
+                mutex_unlock(&mcp->lock);
+                break;
+            default:
+                dev_dbg(mcp->dev, "Invalid config param %04x\n", param);
+                return -ENOTSUPP;
+        }
+    }
+    return ret;
+}
+
+static const struct pinconf_ops mcp_pinconf_ops =
+{
+    .pin_config_get = mcp_pinconf_get,
+    .pin_config_set = mcp_pinconf_set,
+    .is_generic = true,
+};
+
+static int mcp23017_direction_input(struct gpio_chip *chip, unsigned offset)
+{
+    struct mcp23017 *mcp = gpiochip_get_data(chip);
+    int status;
+
+    mutex_lock(&mcp->lock);
+    status = mcp_set_bit(mcp, MCP_IODIR, offset, true);
+    mutex_unlock(&mcp->lock);
+
+    return status;
+}
+
+static int mcp23017_get(struct gpio_chip *chip, unsigned offset)
+{
+    struct mcp23017 *mcp = gpiochip_get_data(chip);
+    int status, ret;
+
+    mutex_lock(&mcp->lock);
+    /* reading this clears IRQ */
+    ret = mcp_read(mcp, MCP_GPIO, &status);
+    if (ret < 0)
+        status = 0;
+    else
+    {
+        mcp->cached_gpio = status;
+        status = !!(status & BIT(offset));
+    }
+
+    mutex_unlock(&mcp->lock);
+    return status;
+}
