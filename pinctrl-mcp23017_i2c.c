@@ -182,6 +182,7 @@ static int mcp_pinconf_get(struct pinctrl_dev *pctldev, unsigned int pin, unsign
             return -ENOTSUPP;
     }
     *config = 0;
+
     return status ? 0 : -EINVAL;
 }
 
@@ -209,6 +210,7 @@ static int mcp_pinconf_set(struct pinctrl_dev *pctldev, unsigned int pin, unsign
                 return -ENOTSUPP;
         }
     }
+
     return ret;
 }
 
@@ -237,7 +239,7 @@ static int mcp23017_get(struct gpio_chip *chip, unsigned offset)
     int status, ret;
 
     mutex_lock(&mcp->lock);
-    /* reading this clears IRQ */
+    /* Reading this clears IRQ */
     ret = mcp_read(mcp, MCP_GPIO, &status);
     if (ret < 0)
         status = 0;
@@ -246,7 +248,166 @@ static int mcp23017_get(struct gpio_chip *chip, unsigned offset)
         mcp->cached_gpio = status;
         status = !!(status & BIT(offset));
     }
+    mutex_unlock(&mcp->lock);
 
+    return status;
+}
+
+static int mcp23017_get_multiple(struct gpio_chip *chip, unsigned long *mask, unsigned long *bits)
+{
+    struct mcp23017 *mcp = gpiochip_get_data(chip);
+    unsigned int status;
+    int ret;
+
+    mutex_lock(&mcp->lock);
+    /* Reading this clears IRQ */
+    ret = mcp_read(mcp, MCP_GPIO, &status);
+    if (ret < 0)
+        status = 0;
+    else
+    {
+        mcp->cached_gpio = status;
+        *bits = status;
+    }
+    mutex_unlock(&mcp->lock);
+
+    return ret;
+}
+
+static int __mcp23017_set(struct mcp23017 *mcp, unsigned mask, bool value)
+{
+    return mcp_update_bits(mcp, MCP_OLAT, mask, value ? mask : 0);
+}
+
+static int mcp23017_set(struct gpio_chip *chip, unsigned int offset, int value)
+{
+    struct mcp23017 *mcp = gpiochip_get_data(chip);
+    unsigned mask = BIT(offset);
+    int ret;
+
+    mutex_lock(&mcp->lock);
+    ret = __mcp23017_set(mcp, mask, !!value);
+    mutex_unlock(&mcp->unlock);
+
+    return ret;
+}
+
+static int mcp23017_set_multiple(struct gpio_chip *chip, unsigned long *mask, unsigned long *bits)
+{
+    struct mcp23017 *mcp = gpiochip_get_data(chip);
+    int ret;
+
+    mutex_lock(&mcp->lock);
+    ret = mcp_update_bits(mcp, MCP_OLAT, *mask, *bits);
+    mutex_unlock(&mcp->unlock);
+
+    return ret;
+}
+
+static int mcp23017_direction_output(struct gpio_chip *chip, unsigned offset, int value)
+{
+    struct mcp23017 *mcp = gpiochip_get_data(chip);
+    unsigned mask = BIT(offset);
+    int status;
+
+    mutex_lock(&mcp->lock);
+    status = __mcp23017_set(mcp, mask, value);
+    if (status == 0)
+    {
+        status = mcp_update_bits(mcp, MCP_IODIR, mask, 0);
+    }
     mutex_unlock(&mcp->lock);
     return status;
+}
+
+static irqreturn_t mcp23017_irq(int irq, void *data)
+{
+    struct mcp23017 *mcp = data;
+    int intcap, intcon, intf, i, gpio, gpio_orig, intcap_mask, defval, gpinten;
+    bool need_unmask = false;
+    unsigned long int enabled_interrupts, defval_changed, gpio_set;
+    bool intf_set, intcap_changed, gpio_bit_changed, defval_changed, gpio_set;
+
+    mutex_lock(&mcp->lock);
+    if (mcp_read(mcp, MCP_INTF, &intf))
+        goto unlock;
+    
+    if (intf == 0)
+    {
+        /* There is no interrupt pending */
+        goto unlock:
+    }
+
+    if (mcp_read(mcp, MCP_INTCON, &intcon))
+        goto unlock;
+
+    if (mcp_read(mcp, MCP_GPINTEN, &gpinten))
+        goto unlock;
+    
+    if (mcp_read(mcp, MCP_DEFVAL, &defval))
+        goto unlock;
+    
+    /* Disable interrupts to avoid reactivation after clearing */
+    if (intcon)
+    {
+        need_unmask = true;
+        if (mcp_read(mcp, MCP_INTCAP, &intcap))
+            goto unlock;
+    }
+
+    if (mcp_read(mcp, MCP_INTCAP, &intcap))
+        goto unlock;
+    
+    /* Clears the interrupt */
+    if (mcp_read(mcp, MCP_GPIO, &gpio))
+        goto unlock;
+
+    gpio_orig = mcp->cached_gpio;
+    mcp->cached_gpio = gpio;
+    mutex_unlock(&mcp->lock);
+
+    dev_dbg(mcp->chip.parent, "intcap 0x%04X intf 0x%04X gpio_orig 0x%04X gpio 0x%04X\n",
+            intcap, intf, gpio_orig, gpio);
+    
+    enabled_interrupts = gpinten;
+    for_each_set_bit(i, &enabled_interrupts, mcp->chip.ngpio)
+    {
+        intf_set = intf & BIT(i);
+        if (i < 8 && intf_set)
+            intcap_mask = 0x00FF;
+        else if (i >= 8 && intf_set)
+            intcap_mask = 0xFF00;
+        else
+            intcap_mask = 0x00;
+        
+        intcap_changed = (intcap_mask & (intcap & BIT(i))) != (intcap_mask & (BIT(i) & gpio_orig));
+        gpio_set = BIT(i) & gpio;
+        gpio_bit_changed = (BIT(i) & gpio_orig) != (BIT(i) & gpio);
+        defval_changed = (BIT(i) & intcon) && ((BIT(i) & gpio) != (BIT(i) & defval));
+
+        if (((gpio_bit_changed || intcap_changed) && (BIT(i) & mcp->irq_rise) && gpio_set) ||
+            ((gpio_bit_changed || intcap_changed) && (BIT(i) & mcp->irq_fall) && gpio_set) ||
+            defval_changed)
+        {
+            child_irq = irq_find_mapping(mcp->chip.irq.domain, i);
+            handle_nested_irq(child_irq);
+        }
+    }
+
+    if (need_unmask)
+    {
+        mutex_lock(&mcp->lock);
+        goto unlock;
+    }
+
+    return IRQ_HANDLED;
+
+unlock:
+    if (need_unmask)
+        if(mcp_write(mcp, MCP_GPINTEN, gpinten))
+            dev_err(mcp->chip.parent, "Can't unmask GPINTEN\n")
+    
+    mutex_unlock(&mcp->lock);
+    return IRQ_HANDLED;
+
 }
