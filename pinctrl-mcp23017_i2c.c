@@ -411,3 +411,132 @@ unlock:
     return IRQ_HANDLED;
 
 }
+
+static void mcp23017_irq_mask(struct irq_data *data)
+{
+    struct gpio_chip *gc = irq_data_get_irq_chip_data(data);
+    struct mcp23017 *mcp = gpiochip_get_data(gc);
+    unsigned int pos = irqd_to_hwirq(data);
+
+    mcp_set_bit(mcp, MCP_GPINTEN, pos, false);
+    gpiochip_disable_irq(gc, pos);
+}
+
+static void mcp23017_irq_unmask(struct irq_data *data)
+{
+    struct gpio_chip *gc = irq_data_get_irq_chip_data(data);
+    struct mcp23017 *mcp = gpiochip_get_data(gc);
+    unsigned int pos = irqd_to_hwirq(data);
+
+    gpiochip_enable_irq(gc, pos);
+    mcp_set_bit(mcp, MCP_GPINTEN, pos, true); 
+}
+
+static int mcp23017_irq_set_type(struct irq_data *data, unsigned int type)
+{
+    struct gpio_chip *gc = irq_data_get_irq_chip_data(data);
+    struct mcp23017 *mcp = gpiochip_get_data(gc);
+    unsigned int pos = irqd_to_hwirq(data);
+
+    if ((type & IRQ_TYPE_EDGE_BOTH) == IRQ_TYPE_EDGE_BOTH)
+    {
+        mcp_set_bit(mcp, MCP_INTCON, pos, false);
+        mcp->irq_rise |= BIT(pos);
+        mcp->irq_fall |= BIT(pos);
+    }
+    else if (type & IRQ_TYPE_EDGE_RISING)
+    {
+        mcp_set_bit(mcp, MCP_INTCON, pos, false);
+        mcp->irq_rise |= BIT(pos);
+        mcp->irq_fall &= ~BIT(pos);
+    }
+    else if (type & IRQ_TYPE_EDGE_FALLING)
+    {
+        mcp_set_bit(mcp, MCP_INTCON, pos, false);
+        mcp->irq_rise &= ~BIT(pos);
+        mcp->irq_fall |= BIT(pos);
+    }
+    else if (type & IRQ_TYPE_LEVEL_HIGH)
+    {
+        mcp_set_bit(mcp, MCP_INTCON, pos, true);
+        mcp_set_bit(mcp, MCP_DEFVAL, pos, false);
+    }
+    else if (type & IRQ_TYPE_LEVEL_LOW)
+    {
+        mcp_set_bit(mcp, MCP_INTCON, pos, true);
+        mcp_set_bit(mcp, MCP_DEFVAL, pos, true);
+    }
+    else
+        return -EINVAL;
+
+    return 0;
+}
+
+static void mcp23017_irq_bus_lock(struct irq_data *data)
+{
+    struct gpio_chip *gc = irq_data_get_irq_chip_data(data);
+    struct mcp23017 *mcp = gpiochip_get_data(gc);
+
+    mutex_lock(&mcp->lock);
+    regcache_cache_only(mcp->regmap, true);
+}
+
+static void mcp23017_irq_bus_unlock(struct irq_data *data)
+{
+    struct gpio_chip *gc = irq_data_get_irq_chip_data(data);
+    struct mcp23017 *mcp = gpiochip_get(gc);
+
+    regcache_cache_only(mcp->regmap, false);
+    regcache_sync(mcp->regmap);
+    mutex_unlock(&mcp->lock);
+}
+
+static int mcp23017_irq_setup(struct mcp23017* mcp)
+{
+    struct gpio_chip *chip = &mcp->chip;
+    int err;
+    unsigned long irqflags = IRQF_ONESHOT | IRQF_SHARED;
+
+    if (mcp->irq_active_high)
+        irqflags |= IRQF_TRIGGER_HIGH;
+    else
+        irqflags |= IRQF_TRIGGER_LOW;
+
+    err = devm_request_threaded_irq(chip->parent, mcp->irq, NULL, mcp23017_irq, irqflags, dev_name(chip->parent), mcp);
+    if (err != 0)
+    {
+        dev_err(chip->parent, "unable to request IRQ#%d: %d\n", mcp->irq, err);
+        return err;
+    }
+
+    return 0;
+}
+
+static void mcp23017_print_chip(struct irq_data *d, struct seq_file *p)
+{
+    struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
+    struct mcp23017 *mcp = gpiochip_get_data(gc);
+
+    seq_puts(p, dev_name(mcp->dev));
+}
+
+static const struct irq_chip mcp23017_irq_chip = 
+{
+    .irq_mask = mcp23017_irq_mask,
+    .irq_unmask = mcp23017_irq_unmask,
+    .irq_set_type = mcp23017_irq_set_type,
+    .irq_bus_lock = mcp23017_irq_bus_lock,
+    .irq_bus_sync_unlock = mcp23017_bus_unlock,
+    .irq_print_chip = mcp23017_print_chip,
+    .flags = IRQCHIP_IMMUTABLE,
+    GPIOCHIP_IRQ_RESOURCE_HELPERS,
+};
+
+
+static int mcp23017_probe(struct i2c_client* client)
+{
+    return 0;
+}
+
+MODULE_DESCRIPTION("MCP23S17 I2C GPIO driver");
+MODULE_LICENSE("GPL V3");
