@@ -8,14 +8,6 @@ struct device;
 struct regmap;
 struct pinctrl_dev;
 
-struct mcp23017_info
-{
-    const struct regmap_config *regmap;
-    const char *label;
-    u16 ngpio;
-    bool reg_shift;
-}
-
 struct mcp23017
 {
     u8 addr;
@@ -41,4 +33,3 @@ struct mcp23017
     struct gpio_desc *reset_gpio;
 }
 
-extern const struct regmap_config mcp23017_regmap;
