@@ -15,6 +15,7 @@
 #include <linux/pinctrl/pinctrl.h>
 #include <linux/pinctrl/pinconf.h>
 #include <linux/pinctrl/pinconf-generic.h>
+#include <linux/i2c.h>
 
 #include "pinctrl-mcp23017_i2c.h"
 
@@ -92,7 +93,6 @@ const struct regmap_config mcp23017_regmap =
     .val_format_endian = REGMAP_ENDIAN_LITTLE,
     .disable_locking = true, // protected by mcp_lock()
 };
-EXPORT_SYMBOL_GPL(mcp23017_regmap);
 
 static int mcp_read(struct mcp23017 *mcp, unsigned int reg, unsigned int *val)
 {
@@ -532,10 +532,157 @@ static const struct irq_chip mcp23017_irq_chip =
     GPIOCHIP_IRQ_RESOURCE_HELPERS,
 };
 
+static const struct of_device_id mcp23017_dt_table[] =
+{
+    {.compatible = "mcp, mcp23017"},
+    {},
+};
+MODULE_DEVICE_TABLE(of, mcp23017_dt_table);
+
+static const struct i2c_device_id mcp23017_id_table[] =
+{
+    {"mcp23017", 0},
+    {},
+};
+MODULE_DEVICE_TABLE(i2c, mcp23017_i2c_id);
+
+static void mcp23017_remove(struct i2c_client* client)
+{
+    struct mcp23017 *mcp = i2c_get_clientdata(client);
+    gpiochip_remove(&mcp->chip);
+}
 
 static int mcp23017_probe(struct i2c_client* client)
 {
+    struct mcp23017 *mcp = i2c_get_clientdata(client);
+    struct device *dev = &client->dev;
+    int ret, status;
+
+    printk("mcp23017 probe");
+    if (!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_BYTE_DATA))
+        return -EIO;
+    mcp = devm_kzalloc(&client->dev, sizeof(*mcp), GFP_KERNEL);
+    if(!mcp)
+        return -ENOMEM;
+
+    mcp->reg_shift = 1,
+    mcp->chip.ngpio = 16,
+    mcp->chip.label = "mcp23017";
+    mcp->regmap = devm_regmap_init_i2c(client, mcp23017_regmap);
+    if(IS_ERR(mcp->regmap))
+        return PTR_ERR(mcp->regmap);
+    
+    mcp->irq = client->irq;
+    mcp->pinctrl_desc.name = "mcp23017-pinctrl";
+
+    bool mirror = false;
+    bool open_drain = false;
+
+    mutex_init(&mcp->lock);
+
+    mcp->dev = dev;
+    mcp->addr = client->addr;
+
+    mcp->irq_active_high = false;
+
+    mcp->chip.direction_input = mcp23017_direction_input;
+    mcp->chip.get = mcp23017_get;
+    mcp->chip.get_multiple = mcp23017_get_multiple;
+    mcp->chip.direction_output = mcp23017_direction_output;
+    mcp->chip.set = mcp23017_set;
+    mcp->chip.set_multiple = mcp23017_set_multiple;
+
+    mcp->chip.base = base;
+    mcp->chip.can_sleep = true;
+    mcp->chip.parent = dev;
+    mcp->chip.owner = THIS_MODULE;
+
+    mcp->reset_gpio = devm_gpiod_get_optional(dev, "reset", GPIO_OUT_LOW);
+
+    ret = mcp_write(mcp, MCP_IODIR, 0xFFFF);
+    if (ret < 0)
+        return ret;
+    
+    ret = mcp_read(mcp, MCP_IOCON, &status);
+    if (ret < 0)
+        return dev_err_probe(dev, ret, "Can't read IOCON at addr: %d\n", addr);
+    
+    mcp->irq_controller = device_property_read_bool(dev, "interrupt-controller");
+    if (mcp->irq && mcp->irq_controller)
+    {
+        mcp->irq_active_high = device_property_read_bool(dev, "microchip,irq-active-high");
+        mirror = device_propert_read_bool(dev, "micrioschip,irq-mirror");
+        open_drain = device_property_read_bool(dev, "driver-open-drain");
+    }
+
+    if((status & IOCON_SEQOP) || !(status & IOCON_HAEN) || mirror || mcp->irq_active_high || open_drain)
+    {
+        status &= ~(IOCON_SEQOP | (IOCON_SEQOP << 8));
+        status |= IOCON_HAEN | (IOCON_HAEN << 8);
+        if (mcp->irq_active_high)
+            status |= IOCON_INTPOL | (IOCON_INTPOL << 8);
+        else
+            status &= ~(IOCON_INTPOL | (IOCON_INTPOL << 8));
+        if (mirror)
+            status |= IOCON_MIRROR | (IOCON_MIRROR << 8);
+        if (open_drain)
+            status |= IOCON_ODR | (IOCON_ODR << 8);
+        
+        ret = mcp_write(mcp, MCP_IOCON, status);
+        if (ret < 0)
+            return dev_err_probe(dev, ret, "can't write IOCON at addr: %d\n", addr);
+    }
+
+    if (mcp->irq && mcp->irq_controller)
+    {
+        struct gpio_irq_chip *girq = &mcp->chip.irq;
+
+        gpio_irq_chip_set_chip(girq, &mcp23017_irq_chip);
+        girq->parent_handler = NULL;
+        girq->num_parents = 0;
+        girq->parents = NULL;
+        girq->default_type = IRQ_TYPE_NONE;
+        girq->handler = handle_simple_irq;
+        girq->threaded = true;
+    }
+
+    ret = devm_gpiochip_add_data(dev, &mcp->chip, mcp);
+    if (ret < 0)
+        return dev_err_probe(dev, ret, "can't add GPIO chip\n");
+    
+    mcp->pinctrl_desc.pctlops = &mcp_pinctrl_ops;
+    mcp->pinctril_desc.confops = &mcp_pinconf_ops;
+    mcp->pinctrl_desc.npins = &mcp->chip.ngpio;
+    mcp->pinctril_desc.pins = mcp23017_pins;
+    mcp->pinctrl_desc.owner = THIS_MODULE;
+
+    mcp->pctldev = devm_pinctrl_register(dev, &mcp->pinctrl_desc, mcp);
+    if(IS_ERR(mcp->pctldev))
+        return dev_err_probe(dev, PTR_ERR(mcp->pctldev), "can't register controller\n");
+    
+    if (mcp->irq)
+    {
+        ret = mcp23017_irq_setup(mcp);
+        if(ret)
+            return dev_err_probe(dev, ret, "can't setup IRQ\n");
+    }
+
+    i2c_set_clientdata(client, mcp);
+    
     return 0;
+}
+
+static struct i2c_driver mcp23017_i2c_driver =
+{
+    .driver =
+    {
+        .owner = THIS_MODULE,
+        .name = "mcp23017",
+        .of_match_table = of_match_ptr(mcp23017_dt_table),
+    },
+    .probe = mcp23017_probe,
+    .remove = mcp23017_remove,
+    .id_table = mcp23017_id_table
 }
 
 MODULE_DESCRIPTION("MCP23S17 I2C GPIO driver");
