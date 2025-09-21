@@ -1,4 +1,4 @@
-obj-m += mcp_ioexpander.o
+obj-m += pinctrl-mcp23017_i2c.o
 
 ccflags-y += -std=gnu11
 

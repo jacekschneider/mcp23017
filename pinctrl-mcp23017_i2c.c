@@ -51,7 +51,7 @@ static const struct reg_default mcp23017_defaults[] =
     {.reg = MCP_INTCON << 1, .def = 0x0000},
     {.reg = MCP_IOCON << 1, .def = 0x0000},
     {.reg = MCP_GPPU << 1, .def = 0x0000},
-    {.reg = MCP_OLAT << 1, .def = 0x0000}
+    {.reg = MCP_OLAT << 1, .def = 0x0000},
 };
 
 static const struct regmap_range mcp23017_volatile_range = 
@@ -117,22 +117,22 @@ static int mcp_update_bit(struct mcp23017 *mcp, unsigned int reg, unsigned int p
 
 static const struct pinctrl_pin_desc mcp23017_pins[] =
 {
-    PINCTRL_PIN(0, "gpio0");
-    PINCTRL_PIN(1, "gpio1");
-    PINCTRL_PIN(2, "gpio2");
-    PINCTRL_PIN(3, "gpio3");
-    PINCTRL_PIN(4, "gpio4");
-    PINCTRL_PIN(5, "gpio5");
-    PINCTRL_PIN(6, "gpio6");
-    PINCTRL_PIN(7, "gpio7");
-    PINCTRL_PIN(8, "gpio8");
-    PINCTRL_PIN(9, "gpio9");
-    PINCTRL_PIN(10, "gpio10");
-    PINCTRL_PIN(11, "gpio11");
-    PINCTRL_PIN(12, "gpio12");
-    PINCTRL_PIN(13, "gpio13");
-    PINCTRL_PIN(14, "gpio14");
-    PINCTRL_PIN(15, "gpio15");
+    PINCTRL_PIN(0, "gpio0"),
+    PINCTRL_PIN(1, "gpio1"),
+    PINCTRL_PIN(2, "gpio2"),
+    PINCTRL_PIN(3, "gpio3"),
+    PINCTRL_PIN(4, "gpio4"),
+    PINCTRL_PIN(5, "gpio5"),
+    PINCTRL_PIN(6, "gpio6"),
+    PINCTRL_PIN(7, "gpio7"),
+    PINCTRL_PIN(8, "gpio8"),
+    PINCTRL_PIN(9, "gpio9"),
+    PINCTRL_PIN(10, "gpio10"),
+    PINCTRL_PIN(11, "gpio11"),
+    PINCTRL_PIN(12, "gpio12"),
+    PINCTRL_PIN(13, "gpio13"),
+    PINCTRL_PIN(14, "gpio14"),
+    PINCTRL_PIN(15, "gpio15"),
 };
 
 static int mcp_pinctrl_get_groups_count(struct pinctrl_dev *pctldev)
@@ -152,7 +152,7 @@ static int mcp_pinctrl_get_group_pins(struct pinctrl_dev *pctldev, unsigned int 
 
 static const struct pinctrl_ops mcp_pinctrl_ops =
 {
-    .get_group_count = mcp_pinctrl_get_group_count,
+    .get_groups_count = mcp_pinctrl_get_groups_count,
     .get_group_name = mcp_pinctrl_get_group_name,
     .get_group_pins = mcp_pinctrl_get_group_pins,
     #ifdef CONFIG_OF
@@ -188,7 +188,7 @@ static int mcp_pinconf_get(struct pinctrl_dev *pctldev, unsigned int pin, unsign
 
 static int mcp_pinconf_set(struct pinctrl_dev *pctldev, unsigned int pin, unsigned long *configs, unsigned int num_configs)
 {
-    struct mcp23017 *mcp = pinctrl_drv_get_drvdata(pctldev);
+    struct mcp23017 *mcp = pinctrl_dev_get_drvdata(pctldev);
     enum pin_config_param param;
     u32 arg;
     int ret = 0;
@@ -202,7 +202,7 @@ static int mcp_pinconf_set(struct pinctrl_dev *pctldev, unsigned int pin, unsign
         {
             case PIN_CONFIG_BIAS_PULL_UP:
                 mutex_lock(&mcp->lock);
-                ret = mcp_set_bit(mcp, MCP_GPPU, pin, arg);
+                ret = mcp_update_bit(mcp, MCP_GPPU, pin, arg);
                 mutex_unlock(&mcp->lock);
                 break;
             default:
@@ -227,7 +227,7 @@ static int mcp23017_direction_input(struct gpio_chip *chip, unsigned offset)
     int status;
 
     mutex_lock(&mcp->lock);
-    status = mcp_set_bit(mcp, MCP_IODIR, offset, true);
+    status = mcp_update_bit(mcp, MCP_IODIR, offset, true);
     mutex_unlock(&mcp->lock);
 
     return status;
@@ -279,7 +279,7 @@ static int __mcp23017_set(struct mcp23017 *mcp, unsigned mask, bool value)
     return mcp_update_bits(mcp, MCP_OLAT, mask, value ? mask : 0);
 }
 
-static int mcp23017_set(struct gpio_chip *chip, unsigned int offset, int value)
+static void mcp23017_set(struct gpio_chip *chip, unsigned int offset, int value)
 {
     struct mcp23017 *mcp = gpiochip_get_data(chip);
     unsigned mask = BIT(offset);
@@ -287,21 +287,17 @@ static int mcp23017_set(struct gpio_chip *chip, unsigned int offset, int value)
 
     mutex_lock(&mcp->lock);
     ret = __mcp23017_set(mcp, mask, !!value);
-    mutex_unlock(&mcp->unlock);
-
-    return ret;
+    mutex_unlock(&mcp->lock);
 }
 
-static int mcp23017_set_multiple(struct gpio_chip *chip, unsigned long *mask, unsigned long *bits)
+static void mcp23017_set_multiple(struct gpio_chip *chip, unsigned long *mask, unsigned long *bits)
 {
     struct mcp23017 *mcp = gpiochip_get_data(chip);
     int ret;
 
     mutex_lock(&mcp->lock);
     ret = mcp_update_bits(mcp, MCP_OLAT, *mask, *bits);
-    mutex_unlock(&mcp->unlock);
-
-    return ret;
+    mutex_unlock(&mcp->lock);
 }
 
 static int mcp23017_direction_output(struct gpio_chip *chip, unsigned offset, int value)
@@ -325,7 +321,8 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
     struct mcp23017 *mcp = data;
     int intcap, intcon, intf, i, gpio, gpio_orig, intcap_mask, defval, gpinten;
     bool need_unmask = false;
-    unsigned long int enabled_interrupts, defval_changed, gpio_set;
+    unsigned long int enabled_interrupts;
+    unsigned int child_irq;
     bool intf_set, intcap_changed, gpio_bit_changed, defval_changed, gpio_set;
 
     mutex_lock(&mcp->lock);
@@ -335,7 +332,7 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
     if (intf == 0)
     {
         /* There is no interrupt pending */
-        goto unlock:
+        goto unlock;
     }
 
     if (mcp_read(mcp, MCP_INTCON, &intcon))
@@ -405,7 +402,7 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
 unlock:
     if (need_unmask)
         if(mcp_write(mcp, MCP_GPINTEN, gpinten))
-            dev_err(mcp->chip.parent, "Can't unmask GPINTEN\n")
+            dev_err(mcp->chip.parent, "Can't unmask GPINTEN\n");
     
     mutex_unlock(&mcp->lock);
     return IRQ_HANDLED;
@@ -418,7 +415,7 @@ static void mcp23017_irq_mask(struct irq_data *data)
     struct mcp23017 *mcp = gpiochip_get_data(gc);
     unsigned int pos = irqd_to_hwirq(data);
 
-    mcp_set_bit(mcp, MCP_GPINTEN, pos, false);
+    mcp_update_bit(mcp, MCP_GPINTEN, pos, false);
     gpiochip_disable_irq(gc, pos);
 }
 
@@ -429,7 +426,7 @@ static void mcp23017_irq_unmask(struct irq_data *data)
     unsigned int pos = irqd_to_hwirq(data);
 
     gpiochip_enable_irq(gc, pos);
-    mcp_set_bit(mcp, MCP_GPINTEN, pos, true); 
+    mcp_update_bit(mcp, MCP_GPINTEN, pos, true); 
 }
 
 static int mcp23017_irq_set_type(struct irq_data *data, unsigned int type)
@@ -440,31 +437,31 @@ static int mcp23017_irq_set_type(struct irq_data *data, unsigned int type)
 
     if ((type & IRQ_TYPE_EDGE_BOTH) == IRQ_TYPE_EDGE_BOTH)
     {
-        mcp_set_bit(mcp, MCP_INTCON, pos, false);
+        mcp_update_bit(mcp, MCP_INTCON, pos, false);
         mcp->irq_rise |= BIT(pos);
         mcp->irq_fall |= BIT(pos);
     }
     else if (type & IRQ_TYPE_EDGE_RISING)
     {
-        mcp_set_bit(mcp, MCP_INTCON, pos, false);
+        mcp_update_bit(mcp, MCP_INTCON, pos, false);
         mcp->irq_rise |= BIT(pos);
         mcp->irq_fall &= ~BIT(pos);
     }
     else if (type & IRQ_TYPE_EDGE_FALLING)
     {
-        mcp_set_bit(mcp, MCP_INTCON, pos, false);
+        mcp_update_bit(mcp, MCP_INTCON, pos, false);
         mcp->irq_rise &= ~BIT(pos);
         mcp->irq_fall |= BIT(pos);
     }
     else if (type & IRQ_TYPE_LEVEL_HIGH)
     {
-        mcp_set_bit(mcp, MCP_INTCON, pos, true);
-        mcp_set_bit(mcp, MCP_DEFVAL, pos, false);
+        mcp_update_bit(mcp, MCP_INTCON, pos, true);
+        mcp_update_bit(mcp, MCP_DEFVAL, pos, false);
     }
     else if (type & IRQ_TYPE_LEVEL_LOW)
     {
-        mcp_set_bit(mcp, MCP_INTCON, pos, true);
-        mcp_set_bit(mcp, MCP_DEFVAL, pos, true);
+        mcp_update_bit(mcp, MCP_INTCON, pos, true);
+        mcp_update_bit(mcp, MCP_DEFVAL, pos, true);
     }
     else
         return -EINVAL;
@@ -484,7 +481,7 @@ static void mcp23017_irq_bus_lock(struct irq_data *data)
 static void mcp23017_irq_bus_unlock(struct irq_data *data)
 {
     struct gpio_chip *gc = irq_data_get_irq_chip_data(data);
-    struct mcp23017 *mcp = gpiochip_get(gc);
+    struct mcp23017 *mcp = gpiochip_get_data(gc);
 
     regcache_cache_only(mcp->regmap, false);
     regcache_sync(mcp->regmap);
@@ -526,7 +523,7 @@ static const struct irq_chip mcp23017_irq_chip =
     .irq_unmask = mcp23017_irq_unmask,
     .irq_set_type = mcp23017_irq_set_type,
     .irq_bus_lock = mcp23017_irq_bus_lock,
-    .irq_bus_sync_unlock = mcp23017_bus_unlock,
+    .irq_bus_sync_unlock = mcp23017_irq_bus_unlock,
     .irq_print_chip = mcp23017_print_chip,
     .flags = IRQCHIP_IMMUTABLE,
     GPIOCHIP_IRQ_RESOURCE_HELPERS,
@@ -544,7 +541,7 @@ static const struct i2c_device_id mcp23017_id_table[] =
     {"mcp23017", 0},
     {},
 };
-MODULE_DEVICE_TABLE(i2c, mcp23017_i2c_id);
+MODULE_DEVICE_TABLE(i2c, mcp23017_id_table);
 
 static void mcp23017_remove(struct i2c_client* client)
 {
@@ -568,7 +565,7 @@ static int mcp23017_probe(struct i2c_client* client)
     mcp->reg_shift = 1,
     mcp->chip.ngpio = 16,
     mcp->chip.label = "mcp23017";
-    mcp->regmap = devm_regmap_init_i2c(client, mcp23017_regmap);
+    mcp->regmap = devm_regmap_init_i2c(client, &mcp23017_regmap);
     if(IS_ERR(mcp->regmap))
         return PTR_ERR(mcp->regmap);
     
@@ -592,12 +589,12 @@ static int mcp23017_probe(struct i2c_client* client)
     mcp->chip.set = mcp23017_set;
     mcp->chip.set_multiple = mcp23017_set_multiple;
 
-    mcp->chip.base = base;
+    mcp->chip.base = -1;
     mcp->chip.can_sleep = true;
     mcp->chip.parent = dev;
     mcp->chip.owner = THIS_MODULE;
 
-    mcp->reset_gpio = devm_gpiod_get_optional(dev, "reset", GPIO_OUT_LOW);
+    mcp->reset_gpio = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_LOW);
 
     ret = mcp_write(mcp, MCP_IODIR, 0xFFFF);
     if (ret < 0)
@@ -605,13 +602,13 @@ static int mcp23017_probe(struct i2c_client* client)
     
     ret = mcp_read(mcp, MCP_IOCON, &status);
     if (ret < 0)
-        return dev_err_probe(dev, ret, "Can't read IOCON at addr: %d\n", addr);
+        return dev_err_probe(dev, ret, "Can't read IOCON at addr: %d\n", mcp->addr);
     
     mcp->irq_controller = device_property_read_bool(dev, "interrupt-controller");
     if (mcp->irq && mcp->irq_controller)
     {
         mcp->irq_active_high = device_property_read_bool(dev, "microchip,irq-active-high");
-        mirror = device_propert_read_bool(dev, "micrioschip,irq-mirror");
+        mirror = device_property_read_bool(dev, "micrioschip,irq-mirror");
         open_drain = device_property_read_bool(dev, "driver-open-drain");
     }
 
@@ -630,7 +627,7 @@ static int mcp23017_probe(struct i2c_client* client)
         
         ret = mcp_write(mcp, MCP_IOCON, status);
         if (ret < 0)
-            return dev_err_probe(dev, ret, "can't write IOCON at addr: %d\n", addr);
+            return dev_err_probe(dev, ret, "can't write IOCON at addr: %d\n", mcp->addr);
     }
 
     if (mcp->irq && mcp->irq_controller)
@@ -651,9 +648,9 @@ static int mcp23017_probe(struct i2c_client* client)
         return dev_err_probe(dev, ret, "can't add GPIO chip\n");
     
     mcp->pinctrl_desc.pctlops = &mcp_pinctrl_ops;
-    mcp->pinctril_desc.confops = &mcp_pinconf_ops;
-    mcp->pinctrl_desc.npins = &mcp->chip.ngpio;
-    mcp->pinctril_desc.pins = mcp23017_pins;
+    mcp->pinctrl_desc.confops = &mcp_pinconf_ops;
+    mcp->pinctrl_desc.npins = mcp->chip.ngpio;
+    mcp->pinctrl_desc.pins = mcp23017_pins;
     mcp->pinctrl_desc.owner = THIS_MODULE;
 
     mcp->pctldev = devm_pinctrl_register(dev, &mcp->pinctrl_desc, mcp);
@@ -683,7 +680,20 @@ static struct i2c_driver mcp23017_i2c_driver =
     .probe = mcp23017_probe,
     .remove = mcp23017_remove,
     .id_table = mcp23017_id_table
-}
+};
 
-MODULE_DESCRIPTION("MCP23S17 I2C GPIO driver");
-MODULE_LICENSE("GPL V3");
+static int __init mcp23017_i2c_init(void)
+{
+	return i2c_add_driver(&mcp23017_i2c_driver);
+}
+subsys_initcall(mcp23017_i2c_init);
+
+static void mcp23017_i2c_exit(void)
+{
+	i2c_del_driver(&mcp23017_i2c_driver);
+}
+module_exit(mcp23017_i2c_exit);
+
+
+MODULE_DESCRIPTION("MCP23017 I2C GPIO driver");
+MODULE_LICENSE("GPL");

@@ -4,10 +4,6 @@
 #include <linux/pinctrl/pinctrl.h>
 #include <linux/types.h>
 
-struct device;
-struct regmap;
-struct pinctrl_dev;
-
 struct mcp23017
 {
     u8 addr;
@@ -31,5 +27,5 @@ struct mcp23017
     struct pinctrl_dev *pctldev;
     struct pinctrl_desc pinctrl_desc;
     struct gpio_desc *reset_gpio;
-}
+};
 
