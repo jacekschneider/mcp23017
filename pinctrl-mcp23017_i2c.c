@@ -531,14 +531,14 @@ static const struct irq_chip mcp23017_irq_chip =
 
 static const struct of_device_id mcp23017_dt_table[] =
 {
-    {.compatible = "mcp, mcp23017"},
+    {.compatible = "mcp,mcp23017", },
     {},
 };
 MODULE_DEVICE_TABLE(of, mcp23017_dt_table);
 
 static const struct i2c_device_id mcp23017_id_table[] =
 {
-    {"mcp23017", 0},
+    {"mcp,mcp23017", 0},
     {},
 };
 MODULE_DEVICE_TABLE(i2c, mcp23017_id_table);
