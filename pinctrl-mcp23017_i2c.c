@@ -223,6 +223,7 @@ static const struct pinconf_ops mcp_pinconf_ops =
 
 static int mcp23017_direction_input(struct gpio_chip *chip, unsigned offset)
 {
+    printk("mcp23017_direction_output");
     struct mcp23017 *mcp = gpiochip_get_data(chip);
     int status;
 
@@ -302,6 +303,7 @@ static void mcp23017_set_multiple(struct gpio_chip *chip, unsigned long *mask, u
 
 static int mcp23017_direction_output(struct gpio_chip *chip, unsigned offset, int value)
 {
+    printk("mcp23017_direction_output");
     struct mcp23017 *mcp = gpiochip_get_data(chip);
     unsigned mask = BIT(offset);
     int status;
@@ -529,9 +531,19 @@ static const struct irq_chip mcp23017_irq_chip =
     GPIOCHIP_IRQ_RESOURCE_HELPERS,
 };
 
+static int mcp_get_gpio_direction(struct gpio_chip *chip, unsigned offset)
+{
+    return 0;
+}
+
+static int mcp_set_gpio_config(struct gpio_chip* chip, unsigned int offset, unsigned long config)
+{
+    return 0;
+}
+
 static const struct of_device_id mcp23017_dt_table[] =
 {
-    {.compatible = "mcp,mcp23017", },
+    {.compatible = "mcp,mcp23017"},
     {},
 };
 MODULE_DEVICE_TABLE(of, mcp23017_dt_table);
@@ -555,13 +567,14 @@ static int mcp23017_probe(struct i2c_client* client)
     struct device *dev = &client->dev;
     int ret, status;
 
-    printk("mcp23017 probe");
+    printk("mcp23017 probe - 1");
     if (!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_BYTE_DATA))
         return -EIO;
-    mcp = devm_kzalloc(&client->dev, sizeof(*mcp), GFP_KERNEL);
+    mcp = devm_kzalloc(dev, sizeof(*mcp), GFP_KERNEL);
     if(!mcp)
         return -ENOMEM;
 
+    printk("mcp23017 probe - 2");
     mcp->reg_shift = 1,
     mcp->chip.ngpio = 16,
     mcp->chip.label = "mcp23017";
@@ -574,7 +587,7 @@ static int mcp23017_probe(struct i2c_client* client)
 
     bool mirror = false;
     bool open_drain = false;
-
+    printk("mcp23017 probe - 3");
     mutex_init(&mcp->lock);
 
     mcp->dev = dev;
@@ -588,6 +601,9 @@ static int mcp23017_probe(struct i2c_client* client)
     mcp->chip.direction_output = mcp23017_direction_output;
     mcp->chip.set = mcp23017_set;
     mcp->chip.set_multiple = mcp23017_set_multiple;
+    mcp->chip.get_direction = mcp_get_gpio_direction;
+    mcp->chip.set_config = mcp_set_gpio_config;
+
 
     mcp->chip.base = -1;
     mcp->chip.can_sleep = true;
@@ -596,6 +612,7 @@ static int mcp23017_probe(struct i2c_client* client)
 
     mcp->reset_gpio = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_LOW);
 
+    printk("mcp23017 probe - 4");
     ret = mcp_write(mcp, MCP_IODIR, 0xFFFF);
     if (ret < 0)
         return ret;
@@ -604,11 +621,12 @@ static int mcp23017_probe(struct i2c_client* client)
     if (ret < 0)
         return dev_err_probe(dev, ret, "Can't read IOCON at addr: %d\n", mcp->addr);
     
+    printk("mcp23017 probe - 5");
     mcp->irq_controller = device_property_read_bool(dev, "interrupt-controller");
     if (mcp->irq && mcp->irq_controller)
     {
         mcp->irq_active_high = device_property_read_bool(dev, "microchip,irq-active-high");
-        mirror = device_property_read_bool(dev, "micrioschip,irq-mirror");
+        mirror = device_property_read_bool(dev, "microchip,irq-mirror");
         open_drain = device_property_read_bool(dev, "driver-open-drain");
     }
 
@@ -630,6 +648,7 @@ static int mcp23017_probe(struct i2c_client* client)
             return dev_err_probe(dev, ret, "can't write IOCON at addr: %d\n", mcp->addr);
     }
 
+    printk("mcp23017 probe - 6");
     if (mcp->irq && mcp->irq_controller)
     {
         struct gpio_irq_chip *girq = &mcp->chip.irq;
@@ -642,18 +661,19 @@ static int mcp23017_probe(struct i2c_client* client)
         girq->handler = handle_simple_irq;
         girq->threaded = true;
     }
-
+    printk("mcp23017 probe - 7");
     ret = devm_gpiochip_add_data(dev, &mcp->chip, mcp);
     if (ret < 0)
         return dev_err_probe(dev, ret, "can't add GPIO chip\n");
-    
+    printk("mcp23017 probe - 8");
     mcp->pinctrl_desc.pctlops = &mcp_pinctrl_ops;
     mcp->pinctrl_desc.confops = &mcp_pinconf_ops;
     mcp->pinctrl_desc.npins = mcp->chip.ngpio;
     mcp->pinctrl_desc.pins = mcp23017_pins;
     mcp->pinctrl_desc.owner = THIS_MODULE;
-
+    printk("mcp23017 probe - 9");
     mcp->pctldev = devm_pinctrl_register(dev, &mcp->pinctrl_desc, mcp);
+    
     if(IS_ERR(mcp->pctldev))
         return dev_err_probe(dev, PTR_ERR(mcp->pctldev), "can't register controller\n");
     
@@ -663,7 +683,7 @@ static int mcp23017_probe(struct i2c_client* client)
         if(ret)
             return dev_err_probe(dev, ret, "can't setup IRQ\n");
     }
-
+    printk("mcp23017 probe - 10");
     i2c_set_clientdata(client, mcp);
     
     return 0;
