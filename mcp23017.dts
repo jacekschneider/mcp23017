@@ -3,8 +3,7 @@
 
 /{
     fragment@0 {
-        target=<&i2c1>;
-
+        target = <&i2c1>;
         __overlay__ {
             #address-cells = <1>;
             #size-cells = <0>;
@@ -15,24 +14,18 @@
                 gpio-controller;
                 #gpio-cells = <2>;
 
-                interrupt-parent = <&gpio1>;
-                interrupts = <17 2>;
+                interrupt-parent = <&gpio>;
+                interrupts = <18 2>;
                 interrupt-controller;
                 #interrupt-cells = <2>;
 
                 microchip,irq-mirror;
                 pinctrl-names = "default";
-                pinctrl-0 = <&pinctrl_i2c_gpio0>, <&gpiopullups>;
-                reset-gpios = <&gpio6 15 2>;
+                reset-gpios = <&gpio 15 2>;
 
-                gpiopullups: pinmux {
-                    pins = "gpio0", "gpio1", "gpio2", "gpio3", 
-                    "gpio4", "gpio5", "gpio6", "gpio7", 
-                    "gpio8", "gpio9", "gpio10", "gpio11", 
-                    "gpio12", "gpio13", "gpio14", "gpio15";
-                    bias-pull-up;
-                };
+                status = "okay";
             };
         };
     };
 };
+

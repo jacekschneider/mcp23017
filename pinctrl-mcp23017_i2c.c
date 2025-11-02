@@ -651,6 +651,7 @@ static int mcp23017_probe(struct i2c_client* client)
     printk("mcp23017 probe - 6");
     if (mcp->irq && mcp->irq_controller)
     {
+	printk("mcp23017 probe - 6.1");    
         struct gpio_irq_chip *girq = &mcp->chip.irq;
 
         gpio_irq_chip_set_chip(girq, &mcp23017_irq_chip);
@@ -660,6 +661,7 @@ static int mcp23017_probe(struct i2c_client* client)
         girq->default_type = IRQ_TYPE_NONE;
         girq->handler = handle_simple_irq;
         girq->threaded = true;
+	printk("mcp23017 - probe 6.2");
     }
     printk("mcp23017 probe - 7");
     ret = devm_gpiochip_add_data(dev, &mcp->chip, mcp);
