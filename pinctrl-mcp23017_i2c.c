@@ -564,6 +564,32 @@ static const struct irq_chip mcp23017_irq_chip =
     GPIOCHIP_IRQ_RESOURCE_HELPERS,
 };
 
+static void dump_mcp23017_registers(void* data)
+{
+    int iodir, ipol, gpinten, intcon, iocon, gppu, intf, intcap, gpio, olat;
+    struct mcp23017 *mcp = data;
+    mcp_read(mcp, MCP_IODIR, &iodir);
+    mcp_read(mcp, MCP_IPOL, &ipol);
+    mcp_read(mcp, MCP_GPINTEN, &gpinten);
+    mcp_read(mcp, MCP_INTCON, &intcon);
+    mcp_read(mcp, MCP_IOCON, &iocon);
+    mcp_read(mcp, MCP_GPPU, &gppu);
+    mcp_read(mcp, MCP_INTF, &intf);
+    mcp_read(mcp, MCP_INTCAP, &intcap);
+    mcp_read(mcp, MCP_GPIO, &gpio);
+    mcp_read(mcp, MCP_OLAT, &olat);
+    printk("iodir: %d\n
+            ipol: %d\n
+            gpinten: %d\n
+            intcon: %d\n
+            iocon: %d\n
+            gppu: %d\n
+            intf: %d\n
+            intcap: %d\n
+            gpio: %d\n
+            olat: %d\n", iodir, ipol, gpinten, intcon, iocon, gppu, intf, intcap, gpio, olat);
+}
+
 static int mcp_get_gpio_direction(struct gpio_chip *chip, unsigned offset)
 {
     return 0;
@@ -754,30 +780,3 @@ MODULE_DESCRIPTION("MCP23017 I2C GPIO driver");
 MODULE_LICENSE("GPL");
 
 
-static void dump_mcp23017_registers(void* data)
-{
-    int iodir, ipol, gpinten, intcon, iocon, gppu, intf, intcap, gpio, olat;
-    struct mcp23017 *mcp = data;
-    mcp_read(mcp, MCP_IODIR, &iodir);
-    mcp_read(mcp, MCP_IPOL, &ipol);
-    mcp_read(mcp, MCP_GPINTEN, &gpinten);
-    mcp_read(mcp, MCP_INTCON, &intcon);
-    mcp_read(mcp, MCP_IOCON, &iocon);
-    mcp_read(mcp, MCP_GPPU, &gppu);
-    mcp_read(mcp, MCP_INTF, &intf);
-    mcp_read(mcp, MCP_INTCAP, &intcap);
-    mcp_read(mcp, MCP_GPIO, &gpio);
-    mcp_read(mcp, MCP_OLAT, &olat);
-    printk("
-            iodir: %d\n
-            ipol: %d\n
-            gpinten: %d\n
-            intcon: %d\n
-            iocon: %d\n
-            gppu: %d\n
-            intf: %d\n
-            intcap: %d\n
-            gpio: %d\n
-            olat: %d\n
-            ", iodir, ipol, gpinten, intcon, iocon, gppu, intf, intcap, gpio, olat);
-}
