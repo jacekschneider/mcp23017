@@ -16,6 +16,7 @@
 #include <linux/pinctrl/pinconf.h>
 #include <linux/pinctrl/pinconf-generic.h>
 #include <linux/i2c.h>
+#include <linux/jiffies.h>
 
 #include "pinctrl-mcp23017_i2c.h"
 
@@ -41,6 +42,9 @@
 #define MCP_INTCAP	0x08
 #define MCP_GPIO	0x09
 #define MCP_OLAT	0x0a
+
+extern unsigned long volatile jiffies;
+unsigned long old_jiffie = 0;
 
 static const struct reg_default mcp23017_defaults[] = 
 {
@@ -320,6 +324,12 @@ static int mcp23017_direction_output(struct gpio_chip *chip, unsigned offset, in
 
 static irqreturn_t mcp23017_irq(int irq, void *data)
 {
+    unsigned long diff = jiffies - old_jiffie;
+    if (diff < 20)
+    {
+        return IRQ_HANDLED;
+    }
+    old_jiffie = jiffies;
     printk("mcp23017_irq - 1");
     struct mcp23017 *mcp = data;
     int intcap, intcon, intf, i, gpio, gpio_orig, intcap_mask, defval, gpinten;
@@ -332,10 +342,11 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
     printk("mcp23017_irq - 2");
     if (mcp_read(mcp, MCP_INTF, &intf))
         goto unlock;
-    
+    printk("mcp23017_irq - 2.1");
     if (intf == 0)
     {
         /* There is no interrupt pending */
+        printk("mcp23017_irq - 2.2");
         goto unlock;
     }
 
@@ -351,6 +362,7 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
     /* Disable interrupts to avoid reactivation after clearing */
     if (intcon)
     {
+        printk("mcp23017_irq - 2.3");
         need_unmask = true;
         if (mcp_read(mcp, MCP_INTCAP, &intcap))
             goto unlock;
@@ -405,11 +417,13 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
     return IRQ_HANDLED;
 
 unlock:
+    printk("mcp23017_irq unlock - 1");
     if (need_unmask)
         if(mcp_write(mcp, MCP_GPINTEN, gpinten))
             dev_err(mcp->chip.parent, "Can't unmask GPINTEN\n");
     
     mutex_unlock(&mcp->lock);
+    printk("mcp23017_irq unlock - 2");
     return IRQ_HANDLED;
 
 }
