@@ -448,19 +448,15 @@ static void mcp23017_irq_unmask(struct irq_data *data)
 {
     struct gpio_chip *gc = irq_data_get_irq_chip_data(data);
     struct mcp23017 *mcp = gpiochip_get_data(gc);
-    dump_mcp23017_registers(mcp);
     printk("mcp23017_irq_unmask - 1");
-    struct gpio_chip *gc = irq_data_get_irq_chip_data(data);
-    printk("mcp23017_irq_unmask - 2");
-    struct mcp23017 *mcp = gpiochip_get_data(gc);
-    printk("mcp23017_irq_unmask - 3");
     unsigned int pos = irqd_to_hwirq(data);
-    printk("mcp23017_irq_unmask - 4");
-
+    printk("mcp23017_irq_unmask - 2 - pos : %d", pos);
+    dump_mcp23017_registers(mcp);
     gpiochip_enable_irq(gc, pos);
-    printk("mcp23017_irq_unmask - 5");
+    printk("mcp23017_irq_unmask - 3");
     mcp_update_bit(mcp, MCP_GPINTEN, pos, true);
-    printk("mcp23017_irq_unmask - 6"); 
+    printk("mcp23017_irq_unmask - 4"); 
+    dump_mcp23017_registers(mcp);
     
 }
 
