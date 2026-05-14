@@ -15,13 +15,13 @@
                 #gpio-cells = <2>;
 
                 interrupt-parent = <&gpio>;
-                interrupts = <18 2>;
+                interrupts = <23 2>;
                 interrupt-controller;
                 #interrupt-cells = <2>;
 
                 microchip,irq-mirror;
                 pinctrl-names = "default";
-                reset-gpios = <&gpio 15 2>;
+                reset-gpios = <&gpio 24 2>;
 
                 status = "okay";
             };
