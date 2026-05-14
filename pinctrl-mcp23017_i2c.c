@@ -320,7 +320,7 @@ static int mcp23017_direction_output(struct gpio_chip *chip, unsigned offset, in
 
 static irqreturn_t mcp23017_irq(int irq, void *data)
 {
-    printk("mcp23017_irq - 1")
+    printk("mcp23017_irq - 1");
     struct mcp23017 *mcp = data;
     int intcap, intcon, intf, i, gpio, gpio_orig, intcap_mask, defval, gpinten;
     bool need_unmask = false;
@@ -329,7 +329,7 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
     bool intf_set, intcap_changed, gpio_bit_changed, defval_changed, gpio_set;
 
     mutex_lock(&mcp->lock);
-    printk("mcp23017_irq - 2")
+    printk("mcp23017_irq - 2");
     if (mcp_read(mcp, MCP_INTF, &intf))
         goto unlock;
     
@@ -366,14 +366,14 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
     gpio_orig = mcp->cached_gpio;
     mcp->cached_gpio = gpio;
     mutex_unlock(&mcp->lock);
-    printk("mcp23017_irq - 3")
+    printk("mcp23017_irq - 3");
     dev_dbg(mcp->chip.parent, "intcap 0x%04X intf 0x%04X gpio_orig 0x%04X gpio 0x%04X\n",
             intcap, intf, gpio_orig, gpio);
     
     enabled_interrupts = gpinten;
     for_each_set_bit(i, &enabled_interrupts, mcp->chip.ngpio)
     {
-        printk("mcp23017_irq - 4 - %d", i)
+        printk("mcp23017_irq - 4 - %d", i);
         intf_set = intf & BIT(i);
         if (i < 8 && intf_set)
             intcap_mask = 0x00FF;
@@ -401,7 +401,7 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
         mutex_lock(&mcp->lock);
         goto unlock;
     }
-    printk("mcp23017_irq - 4")
+    printk("mcp23017_irq - 4");
     return IRQ_HANDLED;
 
 unlock:
@@ -416,7 +416,7 @@ unlock:
 
 static void mcp23017_irq_mask(struct irq_data *data)
 {
-    printk("mcp23017_irq_mask")
+    printk("mcp23017_irq_mask");
     struct gpio_chip *gc = irq_data_get_irq_chip_data(data);
     struct mcp23017 *mcp = gpiochip_get_data(gc);
     unsigned int pos = irqd_to_hwirq(data);
@@ -427,7 +427,7 @@ static void mcp23017_irq_mask(struct irq_data *data)
 
 static void mcp23017_irq_unmask(struct irq_data *data)
 {
-    printk("mcp23017_irq_unmask")
+    printk("mcp23017_irq_unmask");
     struct gpio_chip *gc = irq_data_get_irq_chip_data(data);
     struct mcp23017 *mcp = gpiochip_get_data(gc);
     unsigned int pos = irqd_to_hwirq(data);
@@ -438,6 +438,7 @@ static void mcp23017_irq_unmask(struct irq_data *data)
 
 static int mcp23017_irq_set_type(struct irq_data *data, unsigned int type)
 {
+    printk("mcp23017_irq_set_type");
     struct gpio_chip *gc = irq_data_get_irq_chip_data(data);
     struct mcp23017 *mcp = gpiochip_get_data(gc);
     unsigned int pos = irqd_to_hwirq(data);
@@ -497,6 +498,7 @@ static void mcp23017_irq_bus_unlock(struct irq_data *data)
 
 static int mcp23017_irq_setup(struct mcp23017* mcp)
 {
+    printk("mcp23017_irq_setup");    
     struct gpio_chip *chip = &mcp->chip;
     int err;
     unsigned long irqflags = IRQF_ONESHOT | IRQF_SHARED;
