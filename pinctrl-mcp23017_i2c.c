@@ -441,13 +441,18 @@ static void mcp23017_irq_mask(struct irq_data *data)
 
 static void mcp23017_irq_unmask(struct irq_data *data)
 {
-    printk("mcp23017_irq_unmask");
+    printk("mcp23017_irq_unmask - 1");
     struct gpio_chip *gc = irq_data_get_irq_chip_data(data);
+    printk("mcp23017_irq_unmask - 2");
     struct mcp23017 *mcp = gpiochip_get_data(gc);
+    printk("mcp23017_irq_unmask - 3");
     unsigned int pos = irqd_to_hwirq(data);
+    printk("mcp23017_irq_unmask - 4");
 
     gpiochip_enable_irq(gc, pos);
-    mcp_update_bit(mcp, MCP_GPINTEN, pos, true); 
+    printk("mcp23017_irq_unmask - 5");
+    mcp_update_bit(mcp, MCP_GPINTEN, pos, true);
+    printk("mcp23017_irq_unmask - 6"); 
 }
 
 static int mcp23017_irq_set_type(struct irq_data *data, unsigned int type)
