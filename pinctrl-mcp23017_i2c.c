@@ -578,16 +578,7 @@ static void dump_mcp23017_registers(void* data)
     mcp_read(mcp, MCP_INTCAP, &intcap);
     mcp_read(mcp, MCP_GPIO, &gpio);
     mcp_read(mcp, MCP_OLAT, &olat);
-    printk("iodir: %d\n
-            ipol: %d\n
-            gpinten: %d\n
-            intcon: %d\n
-            iocon: %d\n
-            gppu: %d\n
-            intf: %d\n
-            intcap: %d\n
-            gpio: %d\n
-            olat: %d\n", iodir, ipol, gpinten, intcon, iocon, gppu, intf, intcap, gpio, olat);
+    printk("iodir: %d\n ipol: %d\n gpinten: %d\n intcon: %d\n iocon: %d\n gppu: %d\n intf: %d\n intcap: %d\n gpio: %d\n olat: %d\n", iodir, ipol, gpinten, intcon, iocon, gppu, intf, intcap, gpio, olat);
 }
 
 static int mcp_get_gpio_direction(struct gpio_chip *chip, unsigned offset)
