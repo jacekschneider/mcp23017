@@ -46,6 +46,8 @@
 extern unsigned long volatile jiffies;
 unsigned long old_jiffie = 0;
 
+static void dump_mcp23017_registers(void*);
+
 static const struct reg_default mcp23017_defaults[] = 
 {
     {.reg = MCP_IODIR << 1, .def = 0xffff},
@@ -756,16 +758,16 @@ static void dump_mcp23017_registers(void* data)
 {
     int iodir, ipol, gpinten, intcon, iocon, gppu, intf, intcap, gpio, olat;
     struct mcp23017 *mcp = data;
-    mcp_read(mcp, MCP_IODIR, &iodir)
-    mcp_read(mcp, MCP_IPOL, &ipol)
-    mcp_read(mcp, MCP_GPINTEN, &gpinten)
-    mcp_read(mcp, MCP_INTCON, &intcon)
-    mcp_read(mcp, MCP_IOCON, &iocon)
-    mcp_read(mcp, MCP_GPPU, &gppu)
-    mcp_read(mcp, MCP_INTF, &intf)
-    mcp_read(mcp, MCP_INTCAP, &intcap)
-    mcp_read(mcp, MCP_GPIO, &gpio)
-    mcp_read(mcp, MCP_OLAT, &olat)
+    mcp_read(mcp, MCP_IODIR, &iodir);
+    mcp_read(mcp, MCP_IPOL, &ipol);
+    mcp_read(mcp, MCP_GPINTEN, &gpinten);
+    mcp_read(mcp, MCP_INTCON, &intcon);
+    mcp_read(mcp, MCP_IOCON, &iocon);
+    mcp_read(mcp, MCP_GPPU, &gppu);
+    mcp_read(mcp, MCP_INTF, &intf);
+    mcp_read(mcp, MCP_INTCAP, &intcap);
+    mcp_read(mcp, MCP_GPIO, &gpio);
+    mcp_read(mcp, MCP_OLAT, &olat);
     printk("
             iodir: %d\n
             ipol: %d\n
@@ -777,5 +779,5 @@ static void dump_mcp23017_registers(void* data)
             intcap: %d\n
             gpio: %d\n
             olat: %d\n
-            ", iodir, ipol, gpinten, intcon, iocon, gppu, intf, intcap, gpio, olat)
+            ", iodir, ipol, gpinten, intcon, iocon, gppu, intf, intcap, gpio, olat);
 }
