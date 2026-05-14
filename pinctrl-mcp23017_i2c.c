@@ -325,10 +325,11 @@ static int mcp23017_direction_output(struct gpio_chip *chip, unsigned offset, in
 static irqreturn_t mcp23017_irq(int irq, void *data)
 {
     unsigned long diff = jiffies - old_jiffie;
-    if (diff < 20)
+    if (diff < 2000)
     {
         return IRQ_HANDLED;
     }
+    dump_mcp23017_registers(data);
     old_jiffie = jiffies;
     printk("mcp23017_irq - 1");
     struct mcp23017 *mcp = data;
@@ -414,6 +415,7 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
         goto unlock;
     }
     printk("mcp23017_irq - 4");
+    dump_mcp23017_registers(data);
     return IRQ_HANDLED;
 
 unlock:
@@ -424,6 +426,7 @@ unlock:
     
     mutex_unlock(&mcp->lock);
     printk("mcp23017_irq unlock - 2");
+    dump_mcp23017_registers(data);
     return IRQ_HANDLED;
 
 }
@@ -441,6 +444,7 @@ static void mcp23017_irq_mask(struct irq_data *data)
 
 static void mcp23017_irq_unmask(struct irq_data *data)
 {
+    dump_mcp23017_registers(data);
     printk("mcp23017_irq_unmask - 1");
     struct gpio_chip *gc = irq_data_get_irq_chip_data(data);
     printk("mcp23017_irq_unmask - 2");
@@ -453,6 +457,7 @@ static void mcp23017_irq_unmask(struct irq_data *data)
     printk("mcp23017_irq_unmask - 5");
     mcp_update_bit(mcp, MCP_GPINTEN, pos, true);
     printk("mcp23017_irq_unmask - 6"); 
+    
 }
 
 static int mcp23017_irq_set_type(struct irq_data *data, unsigned int type)
@@ -745,3 +750,32 @@ module_exit(mcp23017_i2c_exit);
 
 MODULE_DESCRIPTION("MCP23017 I2C GPIO driver");
 MODULE_LICENSE("GPL");
+
+
+static void dump_mcp23017_registers(void* data)
+{
+    int iodir, ipol, gpinten, intcon, iocon, gppu, intf, intcap, gpio, olat;
+    struct mcp23017 *mcp = data;
+    mcp_read(mcp, MCP_IODIR, &iodir)
+    mcp_read(mcp, MCP_IPOL, &ipol)
+    mcp_read(mcp, MCP_GPINTEN, &gpinten)
+    mcp_read(mcp, MCP_INTCON, &intcon)
+    mcp_read(mcp, MCP_IOCON, &iocon)
+    mcp_read(mcp, MCP_GPPU, &gppu)
+    mcp_read(mcp, MCP_INTF, &intf)
+    mcp_read(mcp, MCP_INTCAP, &intcap)
+    mcp_read(mcp, MCP_GPIO, &gpio)
+    mcp_read(mcp, MCP_OLAT, &olat)
+    printk("
+            iodir: %d\n
+            ipol: %d\n
+            gpinten: %d\n
+            intcon: %d\n
+            iocon: %d\n
+            gppu: %d\n
+            intf: %d\n
+            intcap: %d\n
+            gpio: %d\n
+            olat: %d\n
+            ", iodir, ipol, gpinten, intcon, iocon, gppu, intf, intcap, gpio, olat)
+}
