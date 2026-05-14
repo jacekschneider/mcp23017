@@ -446,7 +446,9 @@ static void mcp23017_irq_mask(struct irq_data *data)
 
 static void mcp23017_irq_unmask(struct irq_data *data)
 {
-    dump_mcp23017_registers(data);
+    struct gpio_chip *gc = irq_data_get_irq_chip_data(data);
+    struct mcp23017 *mcp = gpiochip_get_data(gc);
+    dump_mcp23017_registers(mcp);
     printk("mcp23017_irq_unmask - 1");
     struct gpio_chip *gc = irq_data_get_irq_chip_data(data);
     printk("mcp23017_irq_unmask - 2");
@@ -569,8 +571,8 @@ static void dump_mcp23017_registers(void* data)
     printk("dump_mcp23017_registers - 1");
     int iodir, ipol, gpinten, intcon, iocon, gppu, intf, intcap, gpio, olat;
     struct mcp23017 *mcp = data;
-    //mcp_read(mcp, MCP_IODIR, &iodir);
-    //mcp_read(mcp, MCP_IPOL, &ipol);
+    mcp_read(mcp, MCP_IODIR, &iodir);
+    mcp_read(mcp, MCP_IPOL, &ipol);
     printk("dump_mcp23017_registers - 2");
     mcp_read(mcp, MCP_GPINTEN, &gpinten);
     mcp_read(mcp, MCP_INTCON, &intcon);
@@ -582,7 +584,7 @@ static void dump_mcp23017_registers(void* data)
     mcp_read(mcp, MCP_INTCAP, &intcap);
     printk("dump_mcp23017_registers - 5");
     mcp_read(mcp, MCP_GPIO, &gpio);
-    //mcp_read(mcp, MCP_OLAT, &olat);
+    mcp_read(mcp, MCP_OLAT, &olat);
     printk("iodir: %d\n ipol: %d\n gpinten: %d\n intcon: %d\n iocon: %d\n gppu: %d\n intf: %d\n intcap: %d\n gpio: %d\n olat: %d\n", iodir, ipol, gpinten, intcon, iocon, gppu, intf, intcap, gpio, olat);
 }
 
