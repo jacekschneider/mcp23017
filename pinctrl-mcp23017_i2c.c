@@ -383,6 +383,7 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
     mcp->cached_gpio = gpio;
     mutex_unlock(&mcp->lock);
     printk("mcp23017_irq - 3");
+    printk("intcap 0x%04X intf 0x%04X gpio_orig 0x%04X gpio 0x%04X\n", intcap, intf, gpio_orig, gpio);
     dev_dbg(mcp->chip.parent, "intcap 0x%04X intf 0x%04X gpio_orig 0x%04X gpio 0x%04X\n",
             intcap, intf, gpio_orig, gpio);
     
@@ -402,11 +403,12 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
         gpio_set = BIT(i) & gpio;
         gpio_bit_changed = (BIT(i) & gpio_orig) != (BIT(i) & gpio);
         defval_changed = (BIT(i) & intcon) && ((BIT(i) & gpio) != (BIT(i) & defval));
-
+        printk("mcp23017_irq - 4.1 gpio bit changed %d", gpio_bit_changed);
         if (((gpio_bit_changed || intcap_changed) && (BIT(i) & mcp->irq_rise) && gpio_set) ||
             ((gpio_bit_changed || intcap_changed) && (BIT(i) & mcp->irq_fall) && gpio_set) ||
             defval_changed)
         {
+            printk("mcp23017_irq - 4.2 - %d", i);
             child_irq = irq_find_mapping(mcp->chip.irq.domain, i);
             handle_nested_irq(child_irq);
         }
