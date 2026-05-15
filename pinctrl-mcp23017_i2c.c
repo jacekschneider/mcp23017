@@ -328,7 +328,7 @@ static int mcp23017_direction_output(struct gpio_chip *chip, unsigned offset, in
 static irqreturn_t mcp23017_irq(int irq, void *data)
 {
     unsigned long diff = jiffies - old_jiffie;
-    if (diff < 2000)
+    if (diff < 100)
     {
         return IRQ_HANDLED;
     }
@@ -408,7 +408,7 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
             ((gpio_bit_changed || intcap_changed) && (BIT(i) & mcp->irq_fall) && gpio_set) ||
             defval_changed)
         {
-            printk("mcp23017_irq - 4.2 - %d", i);
+            printk("mcp23017_irq - 4.2 handle_nested_irq - %d", i);
             child_irq = irq_find_mapping(mcp->chip.irq.domain, i);
             handle_nested_irq(child_irq);
         }
