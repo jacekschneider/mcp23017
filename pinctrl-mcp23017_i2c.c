@@ -331,7 +331,7 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
     {
         return IRQ_HANDLED;
     }
-    dump_mcp23017_registers(data);
+    //dump_mcp23017_registers(data);
     old_jiffie = jiffies;
     printk("mcp23017_irq - 1");
     struct mcp23017 *mcp = data;
@@ -345,7 +345,7 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
     printk("mcp23017_irq - 2");
     if (mcp_read(mcp, MCP_INTF, &intf))
         goto unlock;
-    printk("mcp23017_irq - 2.1");
+    printk("mcp23017_irq - 2.1 intf: %d", intf);
     if (intf == 0)
     {
         /* There is no interrupt pending */
