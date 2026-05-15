@@ -118,7 +118,7 @@ static int mcp_update_bits(struct mcp23017 *mcp, unsigned int reg, unsigned int 
 static int mcp_update_bit(struct mcp23017 *mcp, unsigned int reg, unsigned int pin, bool enabled)
 {
     u16 mask = BIT(pin);
-    printk("mcp_update_bit mask: %s, reg %d, enabled %d",mask, reg, enabled);
+    printk("mcp_update_bit mask: %d, reg %d, enabled %d",mask, reg, enabled);
     return regmap_update_bits(mcp, reg, mask, enabled ? mask : 0);
 }
 
