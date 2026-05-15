@@ -569,17 +569,13 @@ static void dump_mcp23017_registers(void* data)
     struct mcp23017 *mcp = data;
     mcp_read(mcp, MCP_IODIR, &iodir);
     mcp_read(mcp, MCP_IPOL, &ipol);
-    printk("dump_mcp23017_registers - 2");
     mcp_read(mcp, MCP_GPINTEN, &gpinten);
     mcp_read(mcp, MCP_INTCON, &intcon);
-    printk("dump_mcp23017_registers - 3");
     mcp_read(mcp, MCP_IOCON, &iocon);
     mcp_read(mcp, MCP_GPPU, &gppu);
-    printk("dump_mcp23017_registers - 4");
     mcp_read(mcp, MCP_INTF, &intf);
     mcp_read(mcp, MCP_INTCAP, &intcap);
-    printk("dump_mcp23017_registers - 5");
-    mcp_read(mcp, MCP_GPIO, &gpio);
+    //mcp_read(mcp, MCP_GPIO, &gpio);
     mcp_read(mcp, MCP_OLAT, &olat);
     printk("iodir: %d\n ipol: %d\n gpinten: %d\n intcon: %d\n iocon: %d\n gppu: %d\n intf: %d\n intcap: %d\n gpio: %d\n olat: %d\n", iodir, ipol, gpinten, intcon, iocon, gppu, intf, intcap, gpio, olat);
 }
