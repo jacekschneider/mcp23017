@@ -529,9 +529,9 @@ static int mcp23017_irq_setup(struct mcp23017* mcp)
     unsigned long irqflags = IRQF_ONESHOT | IRQF_SHARED;
 
     if (mcp->irq_active_high)
-        irqflags |= IRQF_TRIGGER_RISING;
+        irqflags |= IRQF_TRIGGER_HIGH;
     else
-        irqflags |= IRQF_TRIGGER_FALLING;
+        irqflags |= IRQF_TRIGGER_LOW;
 
     err = devm_request_threaded_irq(chip->parent, mcp->irq, NULL, mcp23017_irq, irqflags, dev_name(chip->parent), mcp);
     if (err != 0)
