@@ -52,7 +52,7 @@ static const struct reg_default mcp23017_defaults[] =
 {
     {.reg = MCP_IODIR << 1, .def = 0xffff},
     {.reg = MCP_IPOL << 1, .def = 0x0000},
-    {.reg = MCP_GPINTEN << 1, .def = 0xffff},
+    {.reg = MCP_GPINTEN << 1, .def = 0x0000},
     {.reg = MCP_DEFVAL << 1, .def = 0x0000},
     {.reg = MCP_INTCON << 1, .def = 0x0000},
     {.reg = MCP_IOCON << 1, .def = 0x0000},
@@ -334,7 +334,7 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
     }
     //dump_mcp23017_registers(data);
     old_jiffie = jiffies;
-    printk("mcp23017_irq - 1");
+    //printk("mcp23017_irq - 1");
     struct mcp23017 *mcp = data;
     int intcap, intcon, intf, i, gpio, gpio_orig, intcap_mask, defval, gpinten;
     bool need_unmask = false;
@@ -343,10 +343,10 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
     bool intf_set, intcap_changed, gpio_bit_changed, defval_changed, gpio_set;
 
     mutex_lock(&mcp->lock);
-    printk("mcp23017_irq - 2");
+    //printk("mcp23017_irq - 2");
     if (mcp_read(mcp, MCP_INTF, &intf))
         goto unlock;
-    printk("mcp23017_irq - 2.1 intf: %d", intf);
+    //printk("mcp23017_irq - 2.1 intf: %d", intf);
     if (intf == 0)
     {
         /* There is no interrupt pending */
@@ -382,8 +382,8 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
     gpio_orig = mcp->cached_gpio;
     mcp->cached_gpio = gpio;
     mutex_unlock(&mcp->lock);
-    printk("mcp23017_irq - 3");
-    printk("intcap 0x%04X intf 0x%04X gpio_orig 0x%04X gpio 0x%04X\n", intcap, intf, gpio_orig, gpio);
+    //printk("mcp23017_irq - 3");
+    //printk("intcap 0x%04X intf 0x%04X gpio_orig 0x%04X gpio 0x%04X\n", intcap, intf, gpio_orig, gpio);
     dev_dbg(mcp->chip.parent, "intcap 0x%04X intf 0x%04X gpio_orig 0x%04X gpio 0x%04X\n",
             intcap, intf, gpio_orig, gpio);
     
@@ -403,7 +403,7 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
         gpio_set = BIT(i) & gpio;
         gpio_bit_changed = (BIT(i) & gpio_orig) != (BIT(i) & gpio);
         defval_changed = (BIT(i) & intcon) && ((BIT(i) & gpio) != (BIT(i) & defval));
-        printk("mcp23017_irq - 4.1 gpio bit changed %d", gpio_bit_changed);
+        //printk("mcp23017_irq - 4.1 gpio bit changed %d", gpio_bit_changed);
         if (((gpio_bit_changed || intcap_changed) && (BIT(i) & mcp->irq_rise) && gpio_set) ||
             ((gpio_bit_changed || intcap_changed) && (BIT(i) & mcp->irq_fall) && gpio_set) ||
             defval_changed)
@@ -419,7 +419,7 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
         mutex_lock(&mcp->lock);
         goto unlock;
     }
-    printk("mcp23017_irq - 4");
+    //printk("mcp23017_irq - 4");
     dump_mcp23017_registers(data);
     return IRQ_HANDLED;
 
@@ -430,7 +430,7 @@ unlock:
             dev_err(mcp->chip.parent, "Can't unmask GPINTEN\n");
     
     mutex_unlock(&mcp->lock);
-    printk("mcp23017_irq unlock - 2");
+    //printk("mcp23017_irq unlock - 2");
     dump_mcp23017_registers(data);
     return IRQ_HANDLED;
 
@@ -453,10 +453,8 @@ static void mcp23017_irq_unmask(struct irq_data *data)
     struct mcp23017 *mcp = gpiochip_get_data(gc);
     printk("mcp23017_irq_unmask - 1");
     unsigned int pos = irqd_to_hwirq(data);
-    printk("mcp23017_irq_unmask - 2 - pos : %d", pos);
     dump_mcp23017_registers(mcp);
     gpiochip_enable_irq(gc, pos);
-    printk("mcp23017_irq_unmask - 3");
     mcp_update_bit(mcp, MCP_GPINTEN, pos, true);
     printk("mcp23017_irq_unmask - 4"); 
     dump_mcp23017_registers(mcp);
