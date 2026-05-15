@@ -420,7 +420,7 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
         goto unlock;
     }
     //printk("mcp23017_irq - 4");
-    dump_mcp23017_registers(data);
+    //dump_mcp23017_registers(data);
     return IRQ_HANDLED;
 
 unlock:
