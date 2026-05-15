@@ -383,7 +383,7 @@ static irqreturn_t mcp23017_irq(int irq, void *data)
     mcp->cached_gpio = gpio;
     mutex_unlock(&mcp->lock);
     //printk("mcp23017_irq - 3");
-    //printk("intcap 0x%04X intf 0x%04X gpio_orig 0x%04X gpio 0x%04X\n", intcap, intf, gpio_orig, gpio);
+    printk("intcap 0x%04X intf 0x%04X gpio_orig 0x%04X gpio 0x%04X\n", intcap, intf, gpio_orig, gpio);
     dev_dbg(mcp->chip.parent, "intcap 0x%04X intf 0x%04X gpio_orig 0x%04X gpio 0x%04X\n",
             intcap, intf, gpio_orig, gpio);
     
@@ -431,7 +431,7 @@ unlock:
     
     mutex_unlock(&mcp->lock);
     //printk("mcp23017_irq unlock - 2");
-    dump_mcp23017_registers(data);
+    //dump_mcp23017_registers(data);
     return IRQ_HANDLED;
 
 }
@@ -574,7 +574,7 @@ static void dump_mcp23017_registers(void* data)
     mcp_read(mcp, MCP_INTCON, &intcon);
     mcp_read(mcp, MCP_IOCON, &iocon);
     mcp_read(mcp, MCP_GPPU, &gppu);
-    mcp_read(mcp, MCP_INTF, &intf);
+    //mcp_read(mcp, MCP_INTF, &intf);
     //mcp_read(mcp, MCP_INTCAP, &intcap);
     //mcp_read(mcp, MCP_GPIO, &gpio);
     mcp_read(mcp, MCP_OLAT, &olat);
