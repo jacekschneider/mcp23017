@@ -52,7 +52,7 @@ static const struct reg_default mcp23017_defaults[] =
 {
     {.reg = MCP_IODIR << 1, .def = 0xffff},
     {.reg = MCP_IPOL << 1, .def = 0x0000},
-    {.reg = MCP_GPINTEN << 1, .def = 0x0000},
+    {.reg = MCP_GPINTEN << 1, .def = 0xffff},
     {.reg = MCP_DEFVAL << 1, .def = 0x0000},
     {.reg = MCP_INTCON << 1, .def = 0x0000},
     {.reg = MCP_IOCON << 1, .def = 0x0000},
@@ -229,7 +229,7 @@ static const struct pinconf_ops mcp_pinconf_ops =
 
 static int mcp23017_direction_input(struct gpio_chip *chip, unsigned offset)
 {
-    printk("mcp23017_direction_output");
+    printk("mcp23017_direction_input");
     struct mcp23017 *mcp = gpiochip_get_data(chip);
     int status;
 
@@ -654,8 +654,8 @@ static int mcp23017_probe(struct i2c_client* client)
     mcp->chip.direction_output = mcp23017_direction_output;
     mcp->chip.set = mcp23017_set;
     mcp->chip.set_multiple = mcp23017_set_multiple;
-    mcp->chip.get_direction = mcp_get_gpio_direction;
-    mcp->chip.set_config = mcp_set_gpio_config;
+    // mcp->chip.get_direction = mcp_get_gpio_direction;
+    // mcp->chip.set_config = mcp_set_gpio_config;
 
 
     mcp->chip.base = -1;
