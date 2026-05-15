@@ -119,7 +119,7 @@ static int mcp_update_bit(struct mcp23017 *mcp, unsigned int reg, unsigned int p
 {
     u16 mask = BIT(pin);
     printk("mcp_update_bit mask: %d, reg %d, enabled %d",mask, reg, enabled);
-    return regmap_update_bits(mcp, reg, mask, enabled ? mask : 0);
+    return mcp_update_bits(mcp, reg, mask, enabled ? mask : 0);
 }
 
 static const struct pinctrl_pin_desc mcp23017_pins[] =
